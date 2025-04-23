@@ -2,7 +2,7 @@
     import { onMount } from 'svelte';
     
     // Backend API URL - replace with your actual URL
-    const API_URL = 'http://localhost/Backend/activity_summarizer';
+    const API_URL = 'http://localhost/activitytracker_backend/activity_summarizer';
     // Ollama API URL
     const OLLAMA_URL = 'http://localhost:11434/api/generate';
     
@@ -202,7 +202,7 @@
         ).join('\n');
         
         // Create prompt for DeepSeek
-        const prompt = `Based on the following activities, provide detailed suggestions for how to manage and schedule these activities in a more time-efficient manner:
+        const prompt = `Based on the following activities, summarize the activities first and the time spent on it. After that, provide detailed suggestions for how to manage and schedule these activities in a more time-efficient manner:
   
   ${activityDetails}
   
