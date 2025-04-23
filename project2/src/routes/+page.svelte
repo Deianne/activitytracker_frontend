@@ -2,9 +2,9 @@
   import { onMount } from 'svelte';
   
   // Backend API URL - replace with your actual URL
-  const API_URL = 'http://localhost/activitytracker_backend/activity_summarizer';
+  const API_URL = 'http://localhost/backend/activitytracker_backend/activity_summarizer';
   // Ollama API URL
-  const  .MA_URL = 'http://localhost:11434/api/generate';
+  const OLLAMA_URL = 'http://localhost:11434/api/generate';
   
   // State
   let activities = [];
