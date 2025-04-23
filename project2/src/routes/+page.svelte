@@ -1,390 +1,351 @@
 <script>
-  import { onMount } from 'svelte';
-  
-  // Backend API URL - replace with your actual URL
-  const API_URL = 'http://localhost/backend/activitytracker_backend/activity_summarizer';
-  // Ollama API URL
-  const OLLAMA_URL = 'http://localhost:11434/api/generate';
-  
-  // State
-  let activities = [];
-  let filteredActivities = [];
-  let allowedTypes = ['study', 'work', 'exercise', 'hobby'];
-  let loading = true;
-  let error = null;
-  let timeManagementSuggestion = null;
-  let isGenerating = false;
-  let toastMessage = null;
-  let toastType = 'info';
-  let toastVisible = false;
-  
-  // Pagination state
-  let currentPage = 1;
-  let itemsPerPage = 5;
-  let totalPages = 1;
-  let paginatedActivities = [];
-  
-  // Search state
-  let searchQuery = '';
-  
-  // Delete confirmation state
-  let showDeleteModal = false;
-  let activityToDelete = null;
-  
-  // Form state
-  let newActivity = {
-    activity_type: 'study',
-    duration_minutes: 30,
-    description: ''
-  };
-  
-  let editingActivity = null;
-  let showAddForm = false;
-  
-  // Toast function
-  function showToast(message, type = 'info') {
-    toastMessage = message;
-    toastType = type;
-    toastVisible = true;
+    import { onMount } from 'svelte';
     
-    setTimeout(() => {
-      toastVisible = false;
-    }, 3000);
-  }
-  
-  // Fetch all activities
-  async function fetchActivities() {
-    loading = true;
-    try {
-      const response = await fetch(`${API_URL}/activities.php`);
-      const data = await response.json();
-      
-      if (data.status === 'success') {
-        activities = data.data;
-        if (data.allowed_types) {
-          allowedTypes = data.allowed_types;
-        }
-        applyFiltersAndPagination();
-      } else {
-        error = data.message || 'Failed to fetch activities';
-      }
-    } catch (err) {
-      error = 'Network error: ' + err.message;
-    } finally {
-      loading = false;
-    }
-  }
-  
-  // Apply search filtering and pagination
-  function applyFiltersAndPagination() {
-    filteredActivities = activities.filter(activity => {
-      const query = searchQuery.toLowerCase();
-      return (
-        activity.activity_type.toLowerCase().includes(query) ||
-        (activity.description && activity.description.toLowerCase().includes(query))
-      );
-    });
+    // Backend API URL - replace with your actual URL
+    const API_URL = 'http://localhost/activitytracker_backend/activity_summarizer';
+    // Ollama API URL
+    const OLLAMA_URL = 'http://localhost:11434/api/generate';
     
-    totalPages = Math.ceil(filteredActivities.length / itemsPerPage);
-    if (currentPage > totalPages) {
-      currentPage = totalPages || 1;
-    }
+    // State
+    let activities = [];
+    let allowedTypes = ['study', 'work', 'exercise', 'hobby'];
+    let loading = true;
+    let error = null;
+    let timeManagementSuggestion = null;
+    let isGenerating = false;
+    let toastMessage = null;
+    let toastType = 'info';
+    let toastVisible = false;
     
-    const startIndex = (currentPage - 1) * itemsPerPage;
-    const endIndex = startIndex + itemsPerPage;
-    paginatedActivities = filteredActivities.slice(startIndex, endIndex);
-  }
-  
-  // Handle search input
-  function handleSearch(event) {
-    searchQuery = event.target.value;
-    currentPage = 1;
-    applyFiltersAndPagination();
-  }
-  
-  // Handle page navigation
-  function goToPrevPage() {
-    if (currentPage > 1) {
-      currentPage -= 1;
-      applyFiltersAndPagination();
-    }
-  }
-  
-  function goToNextPage() {
-    if (currentPage < totalPages) {
-      currentPage += 1;
-      applyFiltersAndPagination();
-    }
-  }
-  
-  // Add new activity
-  async function addActivity() {
-    try {
-      const response = await fetch(`${API_URL}/activities.php`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify(newActivity)
-      });
-      
-      const data = await response.json();
-      
-      if (data.status === 'success') {
-        newActivity = {
-          activity_type: 'study',
-          duration_minutes: 30,
-          description: ''
-        };
-        showAddForm = false;
-        await fetchActivities();
-        showToast('Activity added successfully!', 'success');
-      } else {
-        error = data.message || 'Failed to add activity';
-        showToast(error, 'error');
-      }
-    } catch (err) {
-      error = 'Network error: ' + err.message;
-      showToast(error, 'error');
-    }
-  }
-  
-  // Update activity
-  async function updateActivity() {
-    if (!editingActivity) return;
-    
-    try {
-      const response = await fetch(`${API_URL}/activities.php`, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify(editingActivity)
-      });
-      
-      const data = await response.json();
-      
-      if (data.status === 'success') {
-        editingActivity = null;
-        await fetchActivities();
-        showToast('Activity updated successfully!', 'success');
-      } else {
-        error = data.message || 'Failed to update activity';
-        showToast(error, 'error');
-      }
-    } catch (err) {
-      error = 'Network error: ' + err.message;
-      showToast(error, 'error');
-    }
-  }
-  
-  // Show delete confirmation modal
-  function confirmDelete(activityId) {
-    activityToDelete = activityId;
-    showDeleteModal = true;
-  }
-  
-  // Delete activity
-  async function deleteActivity() {
-    if (!activityToDelete) return;
-    
-    try {
-      const response = await fetch(`${API_URL}/activities.php`, {
-        method: 'DELETE',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({ id: activityToDelete })
-      });
-      
-      const data = await response.json();
-      
-      if (data.status === 'success') {
-        await fetchActivities();
-        showToast('Activity deleted successfully!', 'success');
-      } else {
-        error = data.message || 'Failed to delete activity';
-        showToast(error, 'error');
-      }
-    } catch (err) {
-      error = 'Network error: ' + err.message;
-      showToast(error, 'error');
-    } finally {
-      showDeleteModal = false;
-      activityToDelete = null;
-    }
-  }
-  
-  // Helper function to summarize activities for the AI
-  function summarizeActivities(activityList) {
-    if (!activityList || activityList.length === 0) {
-      return { message: "No activities found" };
-    }
-    
-    const byType = {};
-    let totalDuration = 0;
-    
-    activityList.forEach(activity => {
-      const type = activity.activity_type;
-      if (!byType[type]) {
-        byType[type] = {
-          count: 0,
-          totalMinutes: 0
-        };
-      }
-      
-      byType[type].count++;
-      byType[type].totalMinutes += parseInt(activity.duration_minutes);
-      totalDuration += parseInt(activity.duration_minutes);
-    });
-    
-    return {
-      totalActivities: activityList.length,
-      totalDurationMinutes: totalDuration,
-      byType: byType,
-      mostRecent: activityList[0]
+    // Form state
+    let newActivity = {
+      activity_type: 'study',
+      duration_minutes: 30,
+      description: ''
     };
-  }
-  
-  // Generate time management suggestions using Ollama
-  async function generateTimeManagementSuggestions() {
-    if (activities.length === 0) {
-      showToast('No activities found to analyze', 'warning');
-      return;
+    
+    let editingActivity = null;
+    let showAddForm = false;
+    
+    // Toast function
+    function showToast(message, type = 'info') {
+      toastMessage = message;
+      toastType = type;
+      toastVisible = true;
+      
+      setTimeout(() => {
+        toastVisible = false;
+      }, 3000);
     }
     
-    try {
-      isGenerating = true;
-      showToast('Generating time management suggestions...');
-      
-      const activitySummary = summarizeActivities(activities);
-      
-      const activityDetails = activities.map(a => 
-        `- ${a.activity_type}: "${a.description}" (${a.duration_minutes} minutes)`
-      ).join('\n');
-      
-      const prompt = `Based on the following activities, provide detailed suggestions for how to manage and schedule these activities in a more time-efficient manner:
-
-${activityDetails}
-
-Activity Summary:
-- Total activities: ${activitySummary.totalActivities}
-- Total time spent: ${activitySummary.totalDurationMinutes} minutes
-- Activities by type: ${JSON.stringify(activitySummary.byType)}
-
-Provide practical time management advice including:
-1. How to prioritize these activities
-2. Optimal scheduling throughout the day/week
-3. Techniques to improve efficiency for each activity type
-4. Suggestions for combining or batching similar activities
-5. Recommended breaks and rest periods
-
-Summarize the activities and provide these suggestions in a clear and concise way, highlighting the key points and best practices.
-
-Format your response in clear sections with headings.`;
-      
-      const payload = {
-        model: "deepseek-r1:1.5b", 
-        prompt: prompt,
-        stream: false
-      };
-      
-      const response = await fetch(OLLAMA_URL, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify(payload)
-      });
-      
-      if (response.ok) {
+    // Fetch all activities
+    async function fetchActivities() {
+      loading = true;
+      try {
+        const response = await fetch(`${API_URL}/activities.php`);
         const data = await response.json();
         
-        if (data.response) {
-          timeManagementSuggestion = formatAIResponse(data.response);
-          showToast('Time management suggestions generated successfully!', 'success');
+        if (data.status === 'success') {
+          activities = data.data;
+          if (data.allowed_types) {
+            allowedTypes = data.allowed_types;
+          }
         } else {
-          throw new Error('Empty response from Ollama');
+          error = data.message || 'Failed to fetch activities';
         }
-      } else {
-        const errorText = await response.text();
-        showToast('Failed to generate time management suggestions', 'error');
-        throw new Error('Failed to get response from Ollama');
+      } catch (err) {
+        error = 'Network error: ' + err.message;
+      } finally {
+        loading = false;
       }
-    } catch (err) {
-      error = 'Failed to generate suggestions. Please try again.';
-      showToast(error, 'error');
-    } finally {
-      isGenerating = false;
     }
-  }
-  
-  // Format AI response for better readability
-  function formatAIResponse(response) {
-    let jsonData = null;
-    const jsonMatch = response.match(/```json\n([\s\S]*?)\n```/);
-    if (jsonMatch) {
+    
+    // Add new activity
+    async function addActivity() {
       try {
-        jsonData = JSON.parse(jsonMatch[1]);
-      } catch (e) {
-        console.error("Failed to parse JSON in response:", e);
+        const response = await fetch(`${API_URL}/activities.php`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify(newActivity)
+        });
+        
+        const data = await response.json();
+        
+        if (data.status === 'success') {
+          // Reset form and refresh activities
+          newActivity = {
+            activity_type: 'study',
+            duration_minutes: 30,
+            description: ''
+          };
+          showAddForm = false;
+          await fetchActivities();
+          showToast('Activity added successfully!', 'success');
+        } else {
+          error = data.message || 'Failed to add activity';
+          showToast(error, 'error');
+        }
+      } catch (err) {
+        error = 'Network error: ' + err.message;
+        showToast(error, 'error');
       }
     }
     
-    if (!jsonData) {
-      const inlineJsonMatch = response.match(/{[\s\S]*?}/);
-      if (inlineJsonMatch) {
+    // Update activity
+    async function updateActivity() {
+      if (!editingActivity) return;
+      
+      try {
+        const response = await fetch(`${API_URL}/activities.php`, {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify(editingActivity)
+        });
+        
+        const data = await response.json();
+        
+        if (data.status === 'success') {
+          editingActivity = null;
+          await fetchActivities();
+          showToast('Activity updated successfully!', 'success');
+        } else {
+          error = data.message || 'Failed to update activity';
+          showToast(error, 'error');
+        }
+      } catch (err) {
+        error = 'Network error: ' + err.message;
+        showToast(error, 'error');
+      }
+    }
+    
+    // Delete activity
+    async function deleteActivity(id) {
+      if (!confirm('Are you sure you want to delete this activity?')) return;
+      
+      try {
+        const response = await fetch(`${API_URL}/activities.php`, {
+          method: 'DELETE',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({ id })
+        });
+        
+        const data = await response.json();
+        
+        if (data.status === 'success') {
+          await fetchActivities();
+          showToast('Activity deleted successfully!', 'success');
+        } else {
+          error = data.message || 'Failed to delete activity';
+          showToast(error, 'error');
+        }
+      } catch (err) {
+        error = 'Network error: ' + err.message;
+        showToast(error, 'error');
+      }
+    }
+    
+    // Helper function to summarize activities for the AI
+    function summarizeActivities(activityList) {
+      if (!activityList || activityList.length === 0) {
+        return { message: "No activities found" };
+      }
+      
+      // Group by type
+      const byType = {};
+      let totalDuration = 0;
+      
+      activityList.forEach(activity => {
+        const type = activity.activity_type;
+        if (!byType[type]) {
+          byType[type] = {
+            count: 0,
+            totalMinutes: 0
+          };
+        }
+        
+        byType[type].count++;
+        byType[type].totalMinutes += parseInt(activity.duration_minutes);
+        totalDuration += parseInt(activity.duration_minutes);
+      });
+      
+      return {
+        totalActivities: activityList.length,
+        totalDurationMinutes: totalDuration,
+        byType: byType,
+        mostRecent: activityList[0]
+      };
+    }
+    
+    // Generate time management suggestions using Ollama
+    async function generateTimeManagementSuggestions() {
+      if (activities.length === 0) {
+        showToast('No activities found to analyze', 'warning');
+        return;
+      }
+      
+      try {
+        isGenerating = true;
+        showToast('Generating time management suggestions...');
+        
+        // Create a summary of activities for context
+        const activitySummary = summarizeActivities(activities);
+        
+        // Format activities for the prompt
+        const activityDetails = activities.map(a => 
+          `- ${a.activity_type}: "${a.description}" (${a.duration_minutes} minutes)`
+        ).join('\n');
+        
+        // Create prompt for DeepSeek
+        const prompt = `Based on the following activities, summarize the activities first and the time spent on it. After that, provide detailed suggestions for how to manage and schedule these activities in a more time-efficient manner:
+  
+  ${activityDetails}
+  
+  Activity Summary:
+  - Total activities: ${activitySummary.totalActivities}
+  - Total time spent: ${activitySummary.totalDurationMinutes} minutes
+  - Activities by type: ${JSON.stringify(activitySummary.byType)}
+  
+  Provide practical time management advice including:
+  1. How to prioritize these activities
+  2. Optimal scheduling throughout the day/week
+  3. Techniques to improve efficiency for each activity type
+  4. Suggestions for combining or batching similar activities
+  5. Recommended breaks and rest periods
+  
+  Summarize the activities and provide these suggestions in a clear and concise way, highlighting the key points and best practices.
+  
+  Format your response in clear sections with headings.`;
+        
+        const payload = {
+          model: "deepseek-r1:1.5b", 
+          prompt: prompt,
+          stream: false
+        };
+        
+        // Call Ollama API
+        const response = await fetch(OLLAMA_URL, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify(payload)
+        });
+        
+        if (response.ok) {
+          const data = await response.json();
+          
+          if (data.response) {
+            // Process the AI response to improve formatting
+            timeManagementSuggestion = formatAIResponse(data.response);
+            showToast('Time management suggestions generated successfully!', 'success');
+          } else {
+            throw new Error('Empty response from Ollama');
+          }
+        } else {
+          const errorText = await response.text();
+          showToast('Failed to generate time management suggestions', 'error');
+          throw new Error('Failed to get response from Ollama');
+        }
+      } catch (err) {
+        error = 'Failed to generate suggestions. Please try again.';
+        showToast(error, 'error');
+      } finally {
+        isGenerating = false;
+      }
+    }
+    
+    // Format AI response for better readability
+    function formatAIResponse(response) {
+      // Check if response contains JSON code blocks and extract them
+      let jsonData = null;
+      const jsonMatch = response.match(/```json\n([\s\S]*?)\n```/);
+      if (jsonMatch) {
         try {
-          jsonData = JSON.parse(inlineJsonMatch[0]);
+          jsonData = JSON.parse(jsonMatch[1]);
+          // You can process the JSON data here if needed
         } catch (e) {
-          console.error("Failed to parse inline JSON in response:", e);
+          console.error("Failed to parse JSON in response:", e);
         }
       }
+      
+      // Alternative JSON pattern matching for inline JSON
+      if (!jsonData) {
+        const inlineJsonMatch = response.match(/{[\s\S]*?}/);
+        if (inlineJsonMatch) {
+          try {
+            jsonData = JSON.parse(inlineJsonMatch[0]);
+          } catch (e) {
+            console.error("Failed to parse inline JSON in response:", e);
+          }
+        }
+      }
+      
+      // If JSON data was found, you can use it to enhance the response
+      if (jsonData) {
+        console.log("Extracted JSON data:", jsonData);
+        // You could use this data to create a more structured UI
+        // For now, we'll just continue with the text formatting
+      }
+      
+      // Convert markdown-style headers to HTML
+      let formattedResponse = response
+        .replace(/<think>[\s\S]*?<\/think>/g, '') // Remove <think> tags
+        .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+        .replace(/```json\n[\s\S]*?\n```/g, '') // Remove JSON code blocks
+        .replace(/^# (.*$)/gm, '<h2 class="text-xl font-bold text-purple-800 mt-4 mb-2">$1</h2>')
+        .replace(/^## (.*$)/gm, '<h3 class="text-lg font-semibold text-purple-700 mt-3 mb-2">$1</h3>')
+        .replace(/^### (.*$)/gm, '<h4 class="text-md font-medium text-purple-600 mt-2 mb-1">$1</h4>')
+        .replace(/^#### (.*$)/gm, '')
+        // Format lists
+        .replace(/^\d+\.\s+(.*$)/gm, '<div class="ml-4 mb-2">• $1</div>')
+        .replace(/^-\s+(.*$)/gm, '<div class="ml-4 mb-2">• $1</div>')
+        // Add paragraph spacing
+        .replace(/\n\n/g, '</p><p class="mb-3">');
+      
+      return `<div class="ai-response"><p class="mb-3">${formattedResponse}</p></div>`;
     }
     
-    if (jsonData) {
-      console.log("Extracted JSON data:", jsonData);
+    // Start editing an activity
+    function startEditing(activity) {
+      editingActivity = { ...activity };
     }
     
-    let formattedResponse = response
-      .replace(/<think>[\s\S]*?<\/think>/g, '')
-      .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
-      .replace(/```json\n[\s\S]*?\n```/g, '')
-      .replace(/^# (.*$)/gm, '<h2 class="text-xl font-bold text-purple-800 mt-4 mb-2">$1</h2>')
-      .replace(/^## (.*$)/gm, '<h3 class="text-lg font-semibold text-purple-700 mt-3 mb-2">$1</h3>')
-      .replace(/^### (.*$)/gm, '<h4 class="text-md font-medium text-purple-600 mt-2 mb-1">$1</h4>')
-      .replace(/^#### (.*$)/gm, '')
-      .replace(/^\d+\.\s+(.*$)/gm, '<div class="ml-4 mb-2">• $1</div>')
-      .replace(/^-\s+(.*$)/gm, '<div class="ml-4 mb-2">• $1</div>')
-      .replace(/\n\n/g, '</p><p class="mb-3">');
+    // Cancel editing
+    function cancelEditing() {
+      editingActivity = null;
+    }
     
-    return `<div class="ai-response"><p class="mb-3">${formattedResponse}</p></div>`;
-  }
-  
-  // Start editing an activity
-  function startEditing(activity) {
-    editingActivity = { ...activity };
-  }
-  
-  // Cancel editing
-  function cancelEditing() {
-    editingActivity = null;
-  }
-  
-  // Format date
-  function formatDate(dateString) {
-    const date = new Date(dateString);
-    return new Intl.DateTimeFormat('en-US', {
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit'
-    }).format(date);
-  }
-  
-  // Load activities on mount
-  onMount(fetchActivities);
+    // Format date
+    function formatDate(dateString) {
+      const date = new Date(dateString);
+      return new Intl.DateTimeFormat('en-US', {
+        year: 'numeric',
+        month: 'short',
+        day: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit'
+      }).format(date);
+    }
+    
+    // Get activity type color
+    function getTypeColor(type) {
+      switch(type) {
+        case 'study': return 'bg-purple-100 text-purple-800';
+        case 'work': return 'bg-blue-100 text-blue-800';
+        case 'exercise': return 'bg-green-100 text-green-800';
+        case 'hobby': return 'bg-yellow-100 text-yellow-800';
+        default: return 'bg-gray-100 text-gray-800';
+      }
+    }
+    
+    // Load activities on mount
+    onMount(fetchActivities);
 </script>
 
 <main class="container mx-auto px-4 py-6 max-w-5xl">
